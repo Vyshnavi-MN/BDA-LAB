@@ -1,0 +1,106 @@
+cqlsh> CREATE KEYSPACE Employee WITH REPLICATION = {'class':'SimpleStrategy','replication_factor':1};
+
+cqlsh> DESCRIBE KEYSPACES;
+
+employee  system_auth         system_schema  system_views         
+system    system_distributed  system_traces  system_virtual_schema
+
+cqlsh> USE EMPLOYEE;
+
+cqlsh:employee> CREATE TABLE Employee_Info (Emp_Id int PRIMARY KEY, Emp_Name text, Designation text, Date_Of_Joining timestamp, Salary int, Dept_Name text);
+
+cqlsh:employee> DESCRIBE Employee_Info;
+
+CREATE TABLE employee.employee_info (
+    emp_id int PRIMARY KEY,
+    date_of_joining timestamp,
+    dept_name text,
+    designation text,
+    emp_name text,
+    salary int
+) WITH additional_write_policy = '99p'
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND cdc = false
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND default_time_to_live = 0
+    AND extensions = {}
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair = 'BLOCKING'
+    AND speculative_retry = '99p';
+
+cqlsh:employee> BEGIN BATCH
+            ... INSERT INTO employee_info(Emp_Id,Emp_Name,Designation,Date_Of_joining,Salary,Dept_Name) VALUES(121,'Vyshnavi','Software Developer','2021-03-16',80000,'IT')
+            ... INSERT INTO employee_info(Emp_Id,Emp_Name,Designation,Date_Of_joining,Salary,Dept_Name) VALUES(122,'Rose','Software Developer','2021-03-16',70000,'IT')
+            ... INSERT INTO employee_info(Emp_Id,Emp_Name,Designation,Date_Of_joining,Salary,Dept_Name) VALUES(123,'Asha','Software Developer','2021-03-16',200000,'Sales')
+            ... APPLY BATCH;
+
+cqlsh:employee> select * from employee_info;
+
+ emp_id | date_of_joining                 | dept_name | designation        | emp_name | salary
+--------+---------------------------------+-----------+--------------------+----------+--------
+    123 | 2021-03-16 00:00:00.000000+0000 |     Sales | Software Developer |     Asha | 200000
+    122 | 2021-03-16 00:00:00.000000+0000 |        IT | Software Developer |     Rose |  70000
+    121 | 2021-03-16 00:00:00.000000+0000 |        IT | Software Developer | Vyshnavi |  80000
+
+(3 rows)
+
+cqlsh:employee> UPDATE employee_info SET Emp_Name='Vyshnavi MN', Dept_Name='Software Tester'  WHERE Emp_Id=121;
+
+cqlsh:employee> select * from employee_info;
+
+ emp_id | date_of_joining                 | dept_name       | designation        | emp_name    | salary
+--------+---------------------------------+-----------------+--------------------+-------------+--------
+    123 | 2021-03-16 00:00:00.000000+0000 |           Sales | Software Developer |        Asha | 200000
+    122 | 2021-03-16 00:00:00.000000+0000 |              IT | Software Developer |        Rose |  70000
+    121 | 2021-03-16 00:00:00.000000+0000 | Software Tester | Software Developer | Vyshnavi MN |  80000
+
+(3 rows)
+
+cqlsh:employee> SELECT * FROM employee_info ORDER BY Salary ASC;
+InvalidRequest: Error from server: code=2200 [Invalid query] message="ORDER BY is only supported when the partition key is restricted by an EQ or an IN."
+
+cqlsh:employee> ALTER TABLE employee_info ADD projects set<text>;
+
+cqlsh:employee> select * from employee_info;
+
+ emp_id | date_of_joining                 | dept_name       | designation        | emp_name    | projects | salary
+--------+---------------------------------+-----------------+--------------------+-------------+----------+--------
+    123 | 2021-03-16 00:00:00.000000+0000 |           Sales | Software Developer |        Asha |     null | 200000
+    122 | 2021-03-16 00:00:00.000000+0000 |              IT | Software Developer |        Rose |     null |  70000
+    121 | 2021-03-16 00:00:00.000000+0000 | Software Tester | Software Developer | Vyshnavi MN |     null |  80000
+
+(3 rows)
+cqlsh:employee> UPDATE employee_info SET projects={'sales improvement proj','ad management sys'} WHERE Emp_ID=123;
+cqlsh:employee> UPDATE employee_info SET projects={'company website','Employee management app'} WHERE Emp_ID=121; 
+cqlsh:employee> UPDATE employee_info SET projects={'company website testing'} WHERE Emp_ID=122;
+cqlsh:employee> select * from employee_info;
+
+ emp_id | date_of_joining                 | dept_name       | designation        | emp_name    | projects                                        | salary
+--------+---------------------------------+-----------------+--------------------+-------------+-------------------------------------------------+--------
+    123 | 2021-03-16 00:00:00.000000+0000 |           Sales | Software Developer |        Asha | {'ad management sys', 'sales improvement proj'} | 200000
+    122 | 2021-03-16 00:00:00.000000+0000 |              IT | Software Developer |        Rose |                     {'company website testing'} |  70000
+    121 | 2021-03-16 00:00:00.000000+0000 | Software Tester | Software Developer | Vyshnavi MN |  {'Employee management app', 'company website'} |  80000
+
+(3 rows)
+
+cqlsh:employee> BEGIN BATCH
+            ... INSERT INTO employee_info(Emp_Id,Emp_Name,Designation,Date_Of_joining,Salary,Dept_Name,projects) VALUES(124,'Joe','Intern','2021-03-20',25000,'IT',{'LMS'}) USING TTL 15
+            ... APPLY BATCH;
+
+cqlsh:employee> select * from employee_info;
+ emp_id | date_of_joining                 | dept_name       | designation        | emp_name    | projects                                        | salary
+--------+---------------------------------+-----------------+--------------------+-------------+-------------------------------------------------+--------
+    123 | 2021-03-16 00:00:00.000000+0000 |           Sales | Software Developer |        Asha | {'ad management sys', 'sales improvement proj'} | 200000
+    122 | 2021-03-16 00:00:00.000000+0000 |              IT | Software Developer |        Rose |                     {'company website testing'} |  70000
+    121 | 2021-03-16 00:00:00.000000+0000 | Software Tester | Software Developer | Vyshnavi MN |  {'Employee management app', 'company website'} |  80000
+    124 | 2021-03-20 00:00:00.000000+0000 |              IT |             Intern |         Joe |                                         {'LMS'} |  25000
+
+(4 rows)
+cqlsh:employee> 
